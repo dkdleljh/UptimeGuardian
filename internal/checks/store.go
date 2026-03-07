@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -17,8 +18,8 @@ import (
 var ErrNotFound = errors.New("check not found")
 
 type Store struct {
-	mu      sync.RWMutex
-	checks  map[string]Check
+	mu       sync.RWMutex
+	checks   map[string]Check
 	dataFile string
 }
 
@@ -41,6 +42,12 @@ func (s *Store) List() []Check {
 	for _, c := range s.checks {
 		items = append(items, c)
 	}
+
+	// Stable ordering for clients.
+	sort.Slice(items, func(i, j int) bool {
+		return items[i].CreatedAt.Before(items[j].CreatedAt)
+	})
+
 	return items
 }
 
@@ -242,7 +249,7 @@ func (s *Store) save() error {
 		return fmt.Errorf("failed to create data dir: %w", err)
 	}
 
-	if err := os.WriteFile(s.dataFile, raw, 0o644); err != nil {
+	if err := os.WriteFile(s.dataFile, raw, 0o600); err != nil {
 		return fmt.Errorf("failed to write data file: %w", err)
 	}
 

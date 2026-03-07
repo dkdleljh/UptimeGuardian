@@ -12,10 +12,11 @@ import (
 type Handler struct {
 	store  *checks.Store
 	runner *checks.Runner
+	apiKey string
 }
 
-func NewHandler(store *checks.Store, runner *checks.Runner) *Handler {
-	return &Handler{store: store, runner: runner}
+func NewHandler(store *checks.Store, runner *checks.Runner, apiKey string) *Handler {
+	return &Handler{store: store, runner: runner, apiKey: strings.TrimSpace(apiKey)}
 }
 
 func (h *Handler) Routes() http.Handler {
@@ -27,7 +28,8 @@ func (h *Handler) Routes() http.Handler {
 	mux.HandleFunc("PUT /checks/{id}", h.updateCheck)
 	mux.HandleFunc("DELETE /checks/{id}", h.deleteCheck)
 	mux.HandleFunc("POST /checks/{id}/run", h.runCheck)
-	return withJSONContentType(mux)
+
+	return withJSONContentType(h.withAuth(mux))
 }
 
 func (h *Handler) health(w http.ResponseWriter, _ *http.Request) {
@@ -40,7 +42,9 @@ func (h *Handler) listChecks(w http.ResponseWriter, _ *http.Request) {
 
 func (h *Handler) createCheck(w http.ResponseWriter, r *http.Request) {
 	var in checks.CreateCheckInput
-	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&in); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid json body")
 		return
 	}
@@ -72,7 +76,9 @@ func (h *Handler) getCheck(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) updateCheck(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	var in checks.UpdateCheckInput
-	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&in); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid json body")
 		return
 	}
@@ -117,15 +123,6 @@ func (h *Handler) runCheck(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, result)
-}
-
-func withJSONContentType(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasPrefix(r.URL.Path, "/") {
-			w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		}
-		next.ServeHTTP(w, r)
-	})
 }
 
 func writeJSON(w http.ResponseWriter, code int, v any) {

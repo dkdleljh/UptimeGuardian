@@ -11,22 +11,36 @@ import (
 )
 
 type Runner struct {
-	store      *Store
-	client     *http.Client
-	userAgent  string
-	webhookURL string
+	store          *Store
+	client         *http.Client
+	userAgent      string
+	webhookURL     string
+	webhookTimeout time.Duration
 
 	mu      sync.Mutex
 	nextRun map[string]time.Time
 }
 
-func NewRunner(store *Store, userAgent, webhookURL string) *Runner {
+func NewRunner(store *Store, userAgent, webhookURL string, httpTimeoutSec, webhookTimeoutSec int) *Runner {
+	httpTimeout := time.Duration(httpTimeoutSec) * time.Second
+	if httpTimeout <= 0 {
+		httpTimeout = 10 * time.Second
+	}
+
+	whTimeout := time.Duration(webhookTimeoutSec) * time.Second
+	if whTimeout <= 0 {
+		whTimeout = 5 * time.Second
+	}
+
 	return &Runner{
-		store:      store,
-		client:     &http.Client{},
-		userAgent:  userAgent,
-		webhookURL: webhookURL,
-		nextRun:    map[string]time.Time{},
+		store: store,
+		client: &http.Client{
+			Timeout: httpTimeout,
+		},
+		userAgent:      userAgent,
+		webhookURL:     webhookURL,
+		webhookTimeout: whTimeout,
+		nextRun:        map[string]time.Time{},
 	}
 }
 
@@ -174,7 +188,10 @@ func (r *Runner) postWebhook(check Check, prev Status, current CheckResult) erro
 		return err
 	}
 
-	req, err := http.NewRequest(http.MethodPost, r.webhookURL, bytes.NewReader(raw))
+	ctx, cancel := context.WithTimeout(context.Background(), r.webhookTimeout)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, r.webhookURL, bytes.NewReader(raw))
 	if err != nil {
 		return err
 	}

@@ -28,6 +28,9 @@ curl http://localhost:8080/health
 - `DATA_FILE` (기본 `./data/checks.json`)
 - `ALERT_WEBHOOK_URL` (비우면 알림 비활성)
 - `REQUEST_USER_AGENT`
+- `API_KEY` (선택) 설정 시 API 요청에 `X-API-Key` 또는 `Authorization: Bearer`로 키를 포함해야 합니다.
+- `HTTP_TIMEOUT_SEC` (기본 `10`) 체크 요청 전체 타임아웃
+- `WEBHOOK_TIMEOUT_SEC` (기본 `5`) 알림 웹훅 타임아웃
 
 ### API 예시
 
@@ -92,6 +95,9 @@ curl http://localhost:8080/health
 - `DATA_FILE` (default: `./data/checks.json`)
 - `ALERT_WEBHOOK_URL` (leave empty to disable alerts)
 - `REQUEST_USER_AGENT`
+- `API_KEY` (optional). If set, requests must include `X-API-Key` or `Authorization: Bearer`.
+- `HTTP_TIMEOUT_SEC` (default: `10`) overall HTTP check timeout
+- `WEBHOOK_TIMEOUT_SEC` (default: `5`) webhook alert timeout
 
 ### API Example
 
