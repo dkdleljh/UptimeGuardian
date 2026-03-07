@@ -157,6 +157,63 @@ Webhook payload example:
 }
 ```
 
+### Sending alerts to Discord/Slack
+
+UptimeGuardian sends a **generic JSON payload**. Some platforms (Discord/Slack) expect a different schema.
+
+Common approaches:
+
+1) **Use a webhook relay** (recommended)
+- Send `ALERT_WEBHOOK_URL` to your own small endpoint (Cloudflare Worker, AWS Lambda, a tiny server)
+- Convert the payload into Discord/Slack webhook format
+
+2) **Use automation tools**
+- n8n / Zapier / Make.com: Receive the JSON payload → transform → post to Discord/Slack
+
+#### Minimal relay example (Node.js)
+
+Create `relay.js`:
+
+```js
+import express from "express";
+
+const app = express();
+app.use(express.json({ limit: "1mb" }));
+
+// Set these as env vars in production
+const DISCORD_WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL;
+
+app.post("/uptimeguardian", async (req, res) => {
+  const p = req.body;
+  const text = `[${p.currentStatus?.toUpperCase?.() ?? ""}] ${p.checkName}\n${p.url}\nstatus=${p.statusCode} latency=${p.latencyMs}ms`;
+
+  if (DISCORD_WEBHOOK_URL) {
+    await fetch(DISCORD_WEBHOOK_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content: text }),
+    });
+  }
+
+  res.json({ ok: true });
+});
+
+app.listen(3000, () => console.log("relay listening on :3000"));
+```
+
+Run it:
+
+```bash
+npm i express
+node relay.js
+```
+
+Then set:
+
+- `ALERT_WEBHOOK_URL=http://<relay-host>:3000/uptimeguardian`
+
+> Note: For real deployments, add authentication and HTTPS on the relay.
+
 ---
 
 ## Persistence

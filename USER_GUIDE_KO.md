@@ -192,6 +192,63 @@ curl -X POST http://localhost:8080/checks/<id>/run
 }
 ```
 
+### Discord/Slack으로 알림 보내기(중요)
+
+UptimeGuardian은 **일반 JSON 페이로드**를 웹훅으로 전송합니다.
+하지만 Discord/Slack의 Incoming Webhook은 보통 `{ "content": ... }`(Discord) 또는 `{ "text": ... }`(Slack) 같은 **자기들 전용 포맷**을 기대합니다.
+
+그래서 보통은 아래 중 하나로 구성합니다.
+
+1) **웹훅 릴레이(추천)**
+- `ALERT_WEBHOOK_URL`을 "내가 만든 중간 서버"(Cloudflare Worker/AWS Lambda/간단한 서버)로 지정
+- 중간 서버가 UptimeGuardian payload를 받아 Discord/Slack 포맷으로 변환해 전송
+
+2) **자동화 툴 사용**
+- n8n / Zapier / Make.com: JSON 수신 → 변환 → Discord/Slack 전송
+
+#### 가장 단순한 릴레이 예시(Node.js)
+
+`relay.js` 파일을 만들고:
+
+```js
+import express from "express";
+
+const app = express();
+app.use(express.json({ limit: "1mb" }));
+
+const DISCORD_WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL;
+
+app.post("/uptimeguardian", async (req, res) => {
+  const p = req.body;
+  const text = `[${p.currentStatus?.toUpperCase?.() ?? ""}] ${p.checkName}\n${p.url}\nstatus=${p.statusCode} latency=${p.latencyMs}ms`;
+
+  if (DISCORD_WEBHOOK_URL) {
+    await fetch(DISCORD_WEBHOOK_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content: text }),
+    });
+  }
+
+  res.json({ ok: true });
+});
+
+app.listen(3000, () => console.log("relay listening on :3000"));
+```
+
+실행:
+
+```bash
+npm i express
+node relay.js
+```
+
+그리고 UptimeGuardian에는 아래처럼 설정합니다:
+
+- `ALERT_WEBHOOK_URL=http://<relay-host>:3000/uptimeguardian`
+
+운영 환경에서는 릴레이도 반드시 인증/HTTPS를 적용하는 것을 권장합니다.
+
 ---
 
 ## 7) 데이터 보관
