@@ -1,107 +1,89 @@
 # UptimeGuardian
 
-Go-based health check and alert bot for server endpoints.
+Go-based uptime/health check service with transition-based webhook alerts.
 
-## 한국어 (Korean)
-
-UptimeGuardian은 서버/웹서비스 상태를 주기적으로 확인하고, 상태 변화(장애/복구) 시 웹훅으로 알림을 보내는 프로그램입니다.
-
-### 주요 기능
-
-- 체크 대상 CRUD API
-- 수동 실행 API (`POST /checks/{id}/run`)
-- 체크별 주기 실행 (`intervalSec`)
-- 상태 변화 알림 (DOWN, 선택적으로 RECOVERY)
-- JSON 파일 기반 영속 저장
-
-### 빠른 시작
-
-```bash
-cp .env.example .env
-docker compose up -d --build
-curl http://localhost:8080/health
-```
-
-### 환경 변수
-
-- `PORT` (기본 `8080`)
-- `DATA_FILE` (기본 `./data/checks.json`)
-- `ALERT_WEBHOOK_URL` (비우면 알림 비활성)
-- `REQUEST_USER_AGENT`
-- `API_KEY` (선택) 설정 시 API 요청에 `X-API-Key` 또는 `Authorization: Bearer`로 키를 포함해야 합니다.
-- `HTTP_TIMEOUT_SEC` (기본 `10`) 체크 요청 전체 타임아웃
-- `WEBHOOK_TIMEOUT_SEC` (기본 `5`) 알림 웹훅 타임아웃
-
-### API 예시
-
-체크 생성:
-
-```bash
-curl -X POST http://localhost:8080/checks \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "name": "main-api",
-    "url": "https://example.com/health",
-    "method": "GET",
-    "intervalSec": 30,
-    "timeoutSec": 5,
-    "expectedStatus": 200,
-    "notifyOnRecovery": true,
-    "enabled": true
-  }'
-```
-
-체크 목록:
-
-```bash
-curl http://localhost:8080/checks
-```
-
-수동 실행:
-
-```bash
-curl -X POST http://localhost:8080/checks/<id>/run
-```
-
-### 상세 한글 가이드
-
-자세한 사용법은 `USER_GUIDE_KO.md`를 확인하세요.
+- Periodically checks HTTP endpoints (GET/HEAD)
+- Stores checks + last results in a JSON file
+- Sends a webhook only when status changes (DOWN, optional RECOVERY)
+- Simple CRUD API to manage checks
 
 ---
 
-## English
+## Quick Start (Docker)
 
-UptimeGuardian is a Go service that periodically checks HTTP endpoints and sends webhook alerts when status changes occur (failure/recovery).
-
-### Features
-
-- CRUD API for checks
-- Manual run endpoint (`POST /checks/{id}/run`)
-- Per-check scheduler (`intervalSec`)
-- Transition-based alerts (DOWN and optional RECOVERY)
-- JSON file persistence
-
-### Quick Start
+1) Create an env file:
 
 ```bash
 cp .env.example .env
+```
+
+2) Start the service:
+
+### Docker Compose v2
+
+```bash
 docker compose up -d --build
+```
+
+### Docker Compose v1
+
+```bash
+docker-compose up -d --build
+```
+
+3) Health check:
+
+```bash
 curl http://localhost:8080/health
 ```
 
-### Environment Variables
+Expected:
 
-- `PORT` (default: `8080`)
-- `DATA_FILE` (default: `./data/checks.json`)
-- `ALERT_WEBHOOK_URL` (leave empty to disable alerts)
-- `REQUEST_USER_AGENT`
-- `API_KEY` (optional). If set, requests must include `X-API-Key` or `Authorization: Bearer`.
-- `HTTP_TIMEOUT_SEC` (default: `10`) overall HTTP check timeout
-- `WEBHOOK_TIMEOUT_SEC` (default: `5`) webhook alert timeout
+```json
+{"status":"ok"}
+```
 
-### API Example
+---
 
-Create a check:
+## Configuration
+
+All configuration is via environment variables (typically in `.env`).
+
+- `PORT` (default: `8080`) — API port
+- `DATA_FILE` (default: `./data/checks.json`) — where checks are persisted
+- `ALERT_WEBHOOK_URL` (default: empty) — if empty, alerting is disabled
+- `REQUEST_USER_AGENT` (default: `go-healthcheck-bot/1.0`) — User-Agent for check requests
+
+### API Authentication (recommended if exposed)
+
+- `API_KEY` (default: empty)
+  - If **empty**, the API is **unauthenticated** (convenient for localhost dev)
+  - If **set**, every request must include one of:
+    - `X-API-Key: <API_KEY>`
+    - `Authorization: Bearer <API_KEY>`
+
+### Network timeouts
+
+- `HTTP_TIMEOUT_SEC` (default: `10`) — overall HTTP timeout for endpoint checks
+- `WEBHOOK_TIMEOUT_SEC` (default: `5`) — timeout when posting alert webhooks
+
+---
+
+## API
+
+Base URL: `http://localhost:8080`
+
+### Authentication examples
+
+If `API_KEY` is set:
+
+```bash
+curl -H 'X-API-Key: <API_KEY>' http://localhost:8080/checks
+# or
+curl -H 'Authorization: Bearer <API_KEY>' http://localhost:8080/checks
+```
+
+### Create a check
 
 ```bash
 curl -X POST http://localhost:8080/checks \
@@ -118,14 +100,91 @@ curl -X POST http://localhost:8080/checks \
   }'
 ```
 
-List checks:
+### List checks
 
 ```bash
 curl http://localhost:8080/checks
 ```
 
-Run check manually:
+### Get a check
+
+```bash
+curl http://localhost:8080/checks/<id>
+```
+
+### Update a check
+
+```bash
+curl -X PUT http://localhost:8080/checks/<id> \
+  -H 'Content-Type: application/json' \
+  -d '{"intervalSec":60,"enabled":true}'
+```
+
+### Delete a check
+
+```bash
+curl -X DELETE http://localhost:8080/checks/<id>
+```
+
+### Run a check now
 
 ```bash
 curl -X POST http://localhost:8080/checks/<id>/run
 ```
+
+---
+
+## Alerts (Webhook)
+
+Alerts are sent **only on status transitions**:
+
+- DOWN transition → always notify
+- UP transition → notify only if `notifyOnRecovery=true`
+
+Webhook payload example:
+
+```json
+{
+  "checkId": "abc123",
+  "checkName": "main-api",
+  "url": "https://example.com/health",
+  "previousStatus": "up",
+  "currentStatus": "down",
+  "statusCode": 500,
+  "latencyMs": 88,
+  "checkedAt": "2026-03-07T21:00:00Z",
+  "error": ""
+}
+```
+
+---
+
+## Persistence
+
+Checks and their last results are stored in `DATA_FILE` (JSON). With the default `docker-compose.yml`, `./data` is mounted into the container.
+
+---
+
+## Operations
+
+### Logs
+
+```bash
+docker compose logs -f
+# or
+docker-compose logs -f
+```
+
+### Stop / start / restart
+
+```bash
+docker compose stop && docker compose start
+# or
+docker-compose stop && docker-compose start
+```
+
+---
+
+## Korean Guide
+
+For a more detailed Korean walkthrough, see: `USER_GUIDE_KO.md`
