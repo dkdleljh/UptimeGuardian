@@ -25,8 +25,8 @@ func main() {
 		log.Fatalf("failed to initialize store: %v", err)
 	}
 
-	runner := checks.NewRunner(store, cfg.RequestUA, cfg.AlertWebhookURL)
-	handler := httpapi.NewHandler(store, runner)
+	runner := checks.NewRunner(store, cfg.RequestUA, cfg.AlertWebhookURL, cfg.HTTPTimeoutSec, cfg.WebhookTimeoutSec)
+	handler := httpapi.NewHandler(store, runner, cfg.APIKey)
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
