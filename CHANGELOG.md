@@ -6,6 +6,11 @@ This project follows a simple semantic versioning scheme (`vMAJOR.MINOR.PATCH`).
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-03-07
+
+### Changed
+- Documentation updates only: added `CHANGELOG.md` and webhook relay examples for Discord/Slack.
+
 ## [1.1.0] - 2026-03-07
 
 ### Added
