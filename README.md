@@ -245,3 +245,11 @@ docker-compose stop && docker-compose start
 ## Korean Guide
 
 For a more detailed Korean walkthrough, see: `USER_GUIDE_KO.md`
+
+<!-- BEGIN RELEASE STATUS -->
+## 최신 배포 정보
+
+- 저장소 버전: `v1.1.2`
+- [변경사항과 검증 범위](RELEASE_NOTES.md)
+- [GitHub 릴리즈](https://github.com/dkdleljh/UptimeGuardian/releases/latest)
+<!-- END RELEASE STATUS -->
